@@ -1,0 +1,9 @@
+Epoch_num = 10
+learning_rate = 0.001
+learning_rate_decay = 0.9
+log_dir = './logs'
+model_dir = './test_model'
+image_height = 32
+train_batch = 128
+val_batch = 128
+num_classes = 100
