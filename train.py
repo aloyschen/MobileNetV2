@@ -5,6 +5,7 @@ from model import MobileNetV2
 from cifar100data import CIFAR100data
 import torch.nn as nn
 from torch.optim import Adam
+from torch.optim.rmsprop import RMSprop
 from tqdm import tqdm
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
@@ -26,7 +27,8 @@ def train():
     dataset = CIFAR100data()
     train_loader, val_loader = dataset.train_dataloader, dataset.val_dataloader
     loss = nn.CrossEntropyLoss().cuda()
-    optimizer = Adam(model.parameters(), config.learning_rate)
+    #optimizer = Adam(model.parameters(), config.learning_rate)
+    optimizer = RMSprop(model.parameters(), config.learning_rate, momentum = config.momentum, weight_decay = config.weight_decay)
     summary_writer = SummaryWriter(log_dir = config.log_dir)
     best_top1 = 0.
     for epoch in range(config.Epoch_num):
