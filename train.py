@@ -84,7 +84,7 @@ def eval(model, loss, dataloader, summary_writer, epoch):
     """
     loss_value, top1, top5 = AverageTracker(), AverageTracker(), AverageTracker()
     # 使batchnormlization生效
-    model.train()
+    model.eval()
     for data, target in dataloader:
         data_var, target_var = Variable(data.cuda()), Variable(target.cuda())
         output = model(data_var)

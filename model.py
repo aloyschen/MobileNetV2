@@ -86,6 +86,7 @@ class MobileNetV2(nn.Module):
         self.net = [nn.Sequential(
             nn.Conv2d(3, input_channels, 3, stride = 1, padding = 1,  bias = False),
             nn.BatchNorm2d(input_channels),
+            nn.Dropout2d(0.2, inplace = False),
             nn.ReLU6(inplace = False)
         )]
 
@@ -101,9 +102,10 @@ class MobileNetV2(nn.Module):
         self.net.append(nn.Sequential(
             nn.Conv2d(input_channels, last_channels, 1, stride = 1, bias = False),
             nn.BatchNorm2d(last_channels),
+            nn.Dropout2d(0.2, inplace = False),
             nn.ReLU6(inplace = False)
         ))
-        
+
         self.net.append(nn.Dropout2d(0.2, inplace = False))
         self.net.append(nn.AvgPool2d(kernel_size = 4))
         self.net.append(nn.Dropout2d(0.2, inplace = False))
