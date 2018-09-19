@@ -73,7 +73,7 @@ class MobileNetV2(nn.Module):
         self.InvertedResidualSettings = [
             # t, c, n, s
             [1, 16, 1, 1],
-            [6, 24, 2, 1],
+            [6, 24, 2, 2],
             [6, 32, 3, 2],
             [6, 64, 4, 2],
             [6, 96, 3, 1],
@@ -84,9 +84,8 @@ class MobileNetV2(nn.Module):
         last_channels = int(1280 * width_multiplier) if width_multiplier > 1.0 else 1280
 
         self.net = [nn.Sequential(
-            nn.Conv2d(3, input_channels, 3, stride = 1, padding = 1,  bias = False),
+            nn.Conv2d(3, input_channels, 3, stride = 2, padding = 1,  bias = False),
             nn.BatchNorm2d(input_channels),
-            nn.Dropout2d(0.2, inplace = False),
             nn.ReLU6(inplace = False)
         )]
 
@@ -102,13 +101,10 @@ class MobileNetV2(nn.Module):
         self.net.append(nn.Sequential(
             nn.Conv2d(input_channels, last_channels, 1, stride = 1, bias = False),
             nn.BatchNorm2d(last_channels),
-            nn.Dropout2d(0.2, inplace = False),
             nn.ReLU6(inplace = False)
         ))
 
-        self.net.append(nn.Dropout2d(0.2, inplace = False))
-        self.net.append(nn.AvgPool2d(kernel_size = 4))
-        self.net.append(nn.Dropout2d(0.2, inplace = False))
+        self.net.append(nn.AvgPool2d(kernel_size = 7))
         self.net.append(nn.Conv2d(last_channels, self.num_class, 1, bias = True))
 
         self.net = nn.Sequential(*self.net)

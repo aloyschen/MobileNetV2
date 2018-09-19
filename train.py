@@ -1,12 +1,10 @@
 import os
 import config
 import torch
+import time
 from model import MobileNetV2
-from cifar100data import CIFAR100data
+from ImageNetData import DataReader
 import torch.nn as nn
-from torch.optim import Adam
-from torch.optim.rmsprop import RMSprop
-from tqdm import tqdm
 from torch.autograd import Variable
 import torch.backends.cudnn as cudnn
 from utils import AverageTracker, compute_accuracy
@@ -20,30 +18,27 @@ def train():
     ------------
         训练MobileNet模型
     """
+
     model = MobileNetV2(config.num_classes)
     model.cuda()
     cudnn.enabled = True
     cudnn.benchmark = True
-    dataset = CIFAR100data()
+    dataset = DataReader()
     train_loader, val_loader = dataset.train_dataloader, dataset.val_dataloader
     loss = nn.CrossEntropyLoss().cuda()
-    #optimizer = Adam(model.parameters(), config.learning_rate)
-    optimizer = RMSprop(model.parameters(), config.learning_rate, momentum = config.momentum, weight_decay = config.weight_decay)
+    optimizer = torch.optim.SGD(model.parameters(), config.learning_rate, momentum = config.momentum, weight_decay = config.weight_decay)
     summary_writer = SummaryWriter(log_dir = config.log_dir)
     best_top1 = 0.
     for epoch in range(config.Epoch_num):
-        tqdm_batch = tqdm(train_loader, desc = "Epoch-" + str(epoch) + "-")
-        learning_rate = config.learning_rate * (config.learning_rate_decay ** epoch)
-        for params_group in optimizer.param_groups:
-            params_group['lr'] = learning_rate
-        loss_value, top1, top5 = AverageTracker(), AverageTracker(), AverageTracker()
+        batch_time, losses, top1, top5 = AverageTracker(), AverageTracker(), AverageTracker(), AverageTracker()
+        adjust_learning_rate(optimizer, epoch)
         # 使batchnormlization生效
         model.train()
-        for data, target in tqdm_batch:
+        end = time.time()
+        for idx, (data, target) in enumerate(train_loader):
             data, target = data.cuda(), target.cuda()
-            data_var, target_var = Variable(data), Variable(target)
-            output = model(data_var)
-            cur_loss = loss(output, target_var)
+            output = model(data)
+            cur_loss = loss(output, target)
             # 将梯度置为0，为下次计算做准备
             optimizer.zero_grad()
             # 反向传播计算梯度
@@ -51,16 +46,18 @@ def train():
             # 更新参数
             optimizer.step()
             # 计算准确率
-            cur_acc1, cur_acc5 = compute_accuracy(output.data, target_var, topk = (1, 5))
-            loss_value.update(cur_loss.data.cpu().item())
-            top1.update(cur_acc1[0].item())
-            top5.update(cur_acc5[0].item())
-        summary_writer.add_scalar("epoch-loss", loss_value.avg, epoch)
+            cur_acc1, cur_acc5 = compute_accuracy(output, target, topk = (1, 5))
+            losses.update(cur_loss.item(), data.size(0))
+            top1.update(cur_acc1[0], data.size(0))
+            top5.update(cur_acc5[0], data.size(0))
+            batch_time.update(time.time() - end)
+            end = time.time()
+            if idx % config.print_freq == 0:
+                print('Epoch: {}/{} Batch: {}/{} Loss: {} {} Prec@1: {} {} Prec@5: {} {} Time: {} {}'.format(epoch, config.Epoch_num, idx, len(train_loader), losses.val, losses.avg, top1.val, top1.avg, top5.val, top5.avg, batch_time.val, batch_time.avg))
+
+        summary_writer.add_scalar("epoch-loss", losses.avg, epoch)
         summary_writer.add_scalar("epoch-top1-accuracy", top1.avg, epoch)
         summary_writer.add_scalar("epoch-top5-accuracy", top5.avg, epoch)
-
-        tqdm_batch.close()
-        print("Epoch-" + str(epoch) + " | " + "loss: " + str(loss_value.avg) + " - acc-top1: " + str(top1.avg)[:7] + "- acc-top5: " + str(top5.avg)[:7])
 
         eval(model = model, loss = loss, dataloader = val_loader, summary_writer = summary_writer, epoch = epoch)
 
@@ -82,24 +79,42 @@ def eval(model, loss, dataloader, summary_writer, epoch):
         dataloader: 数据读取
         epoch: 迭代次数
     """
-    loss_value, top1, top5 = AverageTracker(), AverageTracker(), AverageTracker()
+    batch_time, losses, top1, top5 = AverageTracker(), AverageTracker(), AverageTracker(), AverageTracker()
     # 使batchnormlization生效
     model.eval()
-    for data, target in dataloader:
+    end = time.time()
+    for idx, (data, target) in enumerate(dataloader):
         data_var, target_var = Variable(data.cuda()), Variable(target.cuda())
         output = model(data_var)
         cur_loss = loss(output, target_var)
 
         # 计算准确率
         cur_acc1, cur_acc5 = compute_accuracy(output.data, target_var, topk=(1, 5))
-        loss_value.update(cur_loss.data.cpu().item())
-        top1.update(cur_acc1[0].item())
-        top5.update(cur_acc5[0].item())
-    summary_writer.add_scalar("test-loss", loss_value.avg, epoch)
+        losses.update(cur_loss.item(), data_var.size[0])
+        top1.update(cur_acc1[0], data_var.size[0])
+        top5.update(cur_acc5[0], data_var.size[0])
+        batch_time.update(time.time() - end)
+        end = time.time()
+        if idx % config.print_freq == 0:
+            print('Epoch: {}/{} Batch: {}/{} Loss: {:.4f} {:.4f} Prec@1: {:.2f} {:.2f} Prec@5: {:.2f} {:.2f} Time: {:.2f} {:.2f}'.format(epoch, config.Epoch_num,idx, len(dataloader), losses.val, losses.avg, top1.val, top1.avg, top5.val, top5.avg, batch_time.val, batch_time.avg))
+    summary_writer.add_scalar("test-loss", losses.avg, epoch)
     summary_writer.add_scalar("test-top1-accuracy", top1.avg, epoch)
     summary_writer.add_scalar("test-top5-accuracy", top5.avg, epoch)
 
-    print("test Results " + str(epoch) + " | " + "loss: " + str(loss_value.avg) + " - acc-top1: " + str(top1.avg)[:7] + "- acc-top5: " + str(top5.avg)[:7])
+
+def adjust_learning_rate(optimizer, epoch):
+    """
+    Introduction
+    ------------
+        每10个epoch调整一次学习率
+    Parameters
+    ----------
+        optimizer:优化器
+        epoch:当前epoch
+    """
+    lr = config.learning_rate * (0.1 ** (epoch // 30))
+    for param_group in optimizer.param_groups:
+        param_group['lr'] = lr
 
 
 if __name__ == '__main__':

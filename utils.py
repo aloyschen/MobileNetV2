@@ -1,3 +1,4 @@
+import torch
 import numpy as np
 
 class AverageTracker:
@@ -34,18 +35,16 @@ def compute_accuracy(output, target, topk=(1,)):
     Returns
     -------
     """
-    maxk = max(topk)
-    batch_size = target.size(0)
+    with torch.no_grad():
+        maxk = max(topk)
+        batch_size = target.size(0)
 
-    _, idx = output.topk(maxk, 1, True, True)
-    idx = idx.t()
-    correct = idx.eq(target.view(1, -1).expand_as(idx))
+        _, idx = output.topk(maxk, 1, True, True)
+        idx = idx.t()
+        correct = idx.eq(target.view(1, -1).expand_as(idx))
 
-    acc_arr = []
-    for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-        acc_arr.append(correct_k.mul_(1.0 / batch_size))
+        acc_arr = []
+        for k in topk:
+            correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
+            acc_arr.append(correct_k.mul_(100.0 / batch_size))
     return acc_arr
-
-def calc_dataset_stats(dataset, axis=0, ep=1e-7):
-    return (np.mean(dataset, axis=axis) / 255.0).tolist(), (np.std(dataset + ep, axis=axis) / 255.0).tolist()
