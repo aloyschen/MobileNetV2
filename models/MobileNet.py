@@ -79,11 +79,11 @@ def MobileNetV2(width_multiplier = 1.):
     InvertedResidualSettings = [
         # t, c, n, s
         [1, 16, 1, 1],
-        [6, 24, 2, 2],
-        [6, 32, 3, 2],
-        [6, 64, 4, 2],
-        [6, 96, 3, 1],
-        [6, 160, 3, 2],
+        [6, 24, 1, 2],
+        [6, 32, 1, 2],
+        [6, 64, 1, 2],
+        [6, 96, 1, 1],
+        [6, 160, 1, 2],
         [6, 320, 1, 1]
     ]
     input_channels = int(32 * width_multiplier)

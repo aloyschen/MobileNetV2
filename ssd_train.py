@@ -92,7 +92,6 @@ def train():
         }, config.checkpoint_dir + 'checkpoint.pth.tar')
 
 
-
 def eval(model, priors):
     """
     Introduction
@@ -112,7 +111,7 @@ def eval(model, priors):
         detections = detector.forward(output, priors)
         label, score, npos = compute_fp_tp(detections, targets, npos, label, score)
     mAP = compute_mAP(label, score, npos)
-    print('Eval mAP: {}'.format(mAP / config.num_classes))
+    print('Eval mAP: {}'.format(mAP))
     return mAP
 
 if __name__ == '__main__':

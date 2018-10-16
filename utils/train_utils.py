@@ -78,7 +78,7 @@ def adjust_learning_rate(optimizer, epoch):
         optimizer:优化器
         epoch:当前epoch
     """
-    lr = config.learning_rate * (0.8 ** (epoch // 3))
+    lr = config.learning_rate * (0.8 ** (epoch // 100))
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
@@ -222,7 +222,6 @@ def box_iou(detect, ground_truth):
         inter_size = max(inter_min[0][2] - inter_max[0][0], 0.) * max(inter_min[0][3] - inter_max[0][1], 0.)
 
         _iou = inter_size / (det_size + gt_size - inter_size)
-
         iou.append(_iou)
 
     return iou
@@ -267,7 +266,6 @@ def compute_fp_tp(pred, ground_truth, npos, label, score, iou_threshold = 0.5):
                         if not is_gt_box_detected[gt_id]:
                             labels_c[iters] = 1
                             is_gt_box_detected[gt_id] = True
-
             npos[class_index] += len(gt_class_boxes)
             label[class_index] += labels_c
             score[class_index] += score_c

@@ -3,12 +3,12 @@ import torch.nn as nn
 import torch.nn.functional as F
 from models.Modules import L2Norm
 
-class SSDLite(nn.Module):
+class SSD(nn.Module):
     def __init__(self, BaseModel, extras, head, feature_layer, num_class):
         """
         Introduction
         ------------
-            Single Shot Multibox Architecture Lite
+            Single Shot Multibox Architecture
             SSD模型初始化函数，在base model提取特征基础上，增加multi box卷积获取类别概率，box坐标等
         Parameters
         ----------
@@ -19,7 +19,7 @@ class SSDLite(nn.Module):
             size: 图片的大小，包括300，500尺寸
             feature_layer: 提取MobileNetv2的多少层提取特征
         """
-        super(SSDLite, self).__init__()
+        super(SSD, self).__init__()
         self.num_class = num_class
         self.base = nn.ModuleList(BaseModel)
         self.L2Norm = L2Norm(feature_layer[1][0], 20)
@@ -54,7 +54,8 @@ class SSDLite(nn.Module):
         # 添加多尺度特征层[5, 5, 512], [3, 3, 256], [2, 2, 256], [1, 1, 128]
         for index, value in enumerate(self.extras):
             x = F.relu(value(x))
-            sources.append(x)
+            if index % 2 == 0:
+                sources.append(x)
 
         for (x, l, c) in zip(sources, self.loc, self.conf):
             loc.append(l(x).permute(0, 2, 3, 1))
@@ -75,36 +76,6 @@ class SSDLite(nn.Module):
             )
         return output
 
-def _conv_dw(inp, oup, stride=1, padding=0, expand_ratio=1):
-    """
-    Introduction
-    ------------
-        采用MobileNet的结构减少参数，压缩模型
-    Parameters
-    ----------
-        inp: 输入通道数
-        oup: 输出通道数
-        stride: 卷积步长
-        padding: 卷积padding大小
-        expand_ratio: 维度扩充比例
-    Returns:
-    -------
-        压缩模型参数的结构
-    """
-    return nn.Sequential(
-        # pw
-        nn.Conv2d(inp, oup * expand_ratio, 1, 1, 0, bias=False),
-        nn.BatchNorm2d(oup * expand_ratio),
-        nn.ReLU6(),
-        # dw
-        nn.Conv2d(oup * expand_ratio, oup * expand_ratio, 3, stride, padding, groups = oup * expand_ratio, bias=False),
-        nn.BatchNorm2d(oup * expand_ratio),
-        nn.ReLU6(),
-        # pw-linear
-        nn.Conv2d(oup * expand_ratio, oup, 1, 1, 0, bias=False),
-        nn.BatchNorm2d(oup),
-    )
-
 
 def add_extras(base, feature_layer, mbox, num_classes):
     """
@@ -124,10 +95,14 @@ def add_extras(base, feature_layer, mbox, num_classes):
     input_channels = None
     for layer, depth, box_num in zip(feature_layer[0], feature_layer[1], mbox):
         if layer == 'S':
-            extra_layers.append(_conv_dw(input_channels, depth, stride = 2, padding = 1, expand_ratio = 1))
+            extra_layers += [
+                nn.Conv2d(input_channels, int(depth / 2), kernel_size=1),
+                nn.Conv2d(int(depth / 2), depth, kernel_size=3, stride=2, padding=1)]
             input_channels = depth
         elif layer == '':
-            extra_layers.append(_conv_dw(input_channels, depth, stride = 1, expand_ratio = 1))
+            extra_layers += [
+                nn.Conv2d(input_channels, int(depth / 2), kernel_size=1),
+                nn.Conv2d(int(depth / 2), depth, kernel_size=3)]
             input_channels = depth
         else:
             input_channels = depth
@@ -136,7 +111,7 @@ def add_extras(base, feature_layer, mbox, num_classes):
     return base, extra_layers, (loc_layers, conf_layers)
 
 
-def build_ssd_lite(base, feature_layer, mbox, num_classes):
+def build_ssd(base, feature_layer, mbox, num_classes):
     """
     Introduction
     ------------
@@ -148,8 +123,14 @@ def build_ssd_lite(base, feature_layer, mbox, num_classes):
         num_classes: 样本类别数量
     Returns
     -------
-        SSD Lite模型结构
+        SSD模型结构
     """
     base_, extras_, head_ = add_extras(base, feature_layer, mbox, num_classes)
-    return SSDLite(base_, extras_, head_, feature_layer, num_classes)
+    return SSD(base_, extras_, head_, feature_layer, num_classes)
 
+import utils.config as config
+from models.MobileNet import MobileNetV2
+base_model = MobileNetV2(width_multiplier = config.width_multiplier)
+print(base_model[7])
+model = build_ssd(base_model, config.feature_layer['MobileNetV2'], config.mbox['MobileNetV2'], num_classes = 2)
+print(model)

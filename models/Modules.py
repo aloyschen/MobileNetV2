@@ -10,7 +10,7 @@ class L2Norm(nn.Module):
         super(L2Norm, self).__init__()
         self.input_channels = input_channels
         self.gamma = scale or None
-        self.eps = 1e-10
+        self.eps = 1e-8
         self.weight = nn.Parameter(torch.Tensor(self.input_channels))
         nn.init.constant_(self.weight, self.gamma)
 
